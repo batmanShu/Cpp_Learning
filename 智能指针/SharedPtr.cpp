@@ -3,16 +3,16 @@ class SharedPtr{
 public:
     SharedPtr(T* raw_ptr){
         ptr=raw_ptr;
-        *cnt=1;
+        cnt=new int(1);
     }
 
-    SharedPtr(const SharedPtr& p){
+    SharedPtr(SharedPtr& p){
         ptr=p->ptr;
         cnt=p->cnt;
         ++(*cnt);
     }
 
-    SharedPtr<T>& operator =(const SharedPtr& p){
+    SharedPtr<T>& operator =(SharedPtr& p){
         if(&p==this)
             return *this;
         ptr=p->ptr;
@@ -40,9 +40,8 @@ public:
     T* get(){
         return ptr;
     }
-    
 
 private:
     int* cnt;
     T* ptr;
-}
+};
