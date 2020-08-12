@@ -6,38 +6,35 @@ public:
         cnt=new int(1);
     }
 
-    SharedPtr(SharedPtr& p){
-        ptr=p->ptr;
-        cnt=p->cnt;
+    SharedPtr(const SharedPtr<T>& p){
+        ptr=p.ptr;
+        cnt=p.cnt;
         ++(*cnt);
     }
 
-    SharedPtr<T>& operator =(SharedPtr& p){
+    SharedPtr<T>& operator =(const SharedPtr<T>& p){
         if(&p==this)
             return *this;
-        ptr=p->ptr;
-        cnt=p->cnt;
+        ptr=p.ptr;
+        cnt=p.cnt;
         ++(*cnt);
         return *this;
     }
 
     ~SharedPtr(){
         --(*cnt);
+        cout<<*cnt<<endl;
         if(*cnt==0)
             delete ptr;
         ptr=nullptr;
         cnt=nullptr;
     }
 
-    SharedPtr<T>& operator * (){
-        return *this;
+    T& operator * (){
+        return *ptr;
     }
 
-    SharedPtr<T>* operator -> (){
-        return this;
-    }
-
-    T* get(){
+    T* operator -> (){
         return ptr;
     }
 
