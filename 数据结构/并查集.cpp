@@ -23,7 +23,6 @@ class DisjSet
                 if(ranks[p1]==ranks[p2])
                     ++ranks[p2];
             }
-            
             parents[find(x)]=find(y);
         }
 
