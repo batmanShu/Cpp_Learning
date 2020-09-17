@@ -27,6 +27,7 @@
 - [c++11](#c11)
   - [智能指针](#智能指针)
   - [右值](#右值)
+    - [右值引用](#右值引用)
     - [std::move](#stdmove)
     - [std::forward](#stdforward)
 - [stl](#stl)
@@ -77,7 +78,18 @@ const
   
 第三个函数
 + 表示它不会修改它的数据成员（也就是函数中的变量）。一般来讲，凡是不会修改数据成员的都应该定义为const版本
+
+const和#define比较:
++ 就起作用的阶段而言： #define是在编译的预处理阶段起作用，而const是在 编译、运行的时候起作用
++ 就起作用的方式而言： #define只是简单的字符串替换，没有类型检查。而const有对应的数据类型，是要进行判断的，可以避免一些低级的错误
++ 就存储方式而言：#define只是进行展开，有多少地方使用，就替换多少次，它定义的宏常量在内存中有若干个备份；const定义的只读变量在程序运行过程中只有一份备份
++ 从代码调试的方便程度而言： const常量可以进行调试的，define是不能进行调试的，因为在预编译阶段就已经替换掉了
   
+const相对于#define的优点
++ const常量有数据类型，而宏常量没有数据类型。编译器可以对前者进行类型安全检查。而对后者只进行字符替换，没有类型安全检查，并且在字符替换可能会产生意料不到的错误
++ 有些集成化的调试工具可以对const常量进行调试，但是不能对宏常量进行调试
++ const可节省空间，避免不必要的内存分配，提高效率
+
 virtual
 ---
 + [虚函数](#jump)
@@ -157,10 +169,142 @@ reinterpret_cast
 # c++11
 ## 智能指针
 ## 右值
+可以对表达式取地址&的为左值，否则为右值，当一个对象被用作右值的时候，用的是对象的值(内容)，当对象被用作左值的时候，用的是对象的身份(在内存中的位置)
+### 右值引用
+在某些情况下，对象拷贝后就立即被销毁。这些情况下，移动而非拷贝对象会大幅度提升性能。因此，在C++11中引入了右值引用。右值引用必须绑定到右值的引用。通过&&而不是&来获得右值引用。右值引用的一个重要特性——只能绑定到一个将要销毁的对象。因此，可以自由地将一个右值引用的资源”移动”到另一个对象中。类似任何引用，一个右值引用也不过是某个对象的另一个名字而已。对于常规引用(为了与右值引用区分开来，可以称之为左值引用(lvalue reference))，不能将其绑定到要求转换的表达式、字面常量或是返回右值的表达式。右值引用有着完全相反的绑定特性：可以将一个右值引用绑定到这类表达式上，但不能将一个右值引用直接绑定到一个左值上
+```
+int  i = 42;
+int  &r = i;					// 正确：r引用i
+int  &&rr = i;					// 错误：不能将右值引用绑定到左值上
+int  &r2 = i * 42;				// 错误：i * 42为右值
+const  int  &r3 = i * 42;		        // 正确：可以将一个const的引用绑定到右值上
+int  &&r2 = i * 42;				// 正确：右值引用可以绑定到右值上
+```
+观察左右值表达式可知：左值有持久的状态，而右值要么是字面常量，要么是在表达式求职过程中创建的临时变量。
+
+由于右值引用只能绑定到临时对象，可知所引用的对象是将要销毁的，该对象没有其他用户。这意味着：使用右值引用的代码可以自由的接管所引用的对象的资源。
+
++ 变量是左值，不能将一个右值引用直接绑定到一个变量上，即使这个变量是右值也不行
+```
+int  &&rr1 = 42;		// 正确：字面常量是右值
+int  &&rr2 = rr1;		// 错误：表达式rr1是左值
+```
+
 ### std::move
+虽然不能将一个右值引用直接绑定到左值上，但是可以显式的将一个左值转换为对应的右值引用类型。可以使用move库函数来获得绑定到左值上的右值引用，该函数在utility中
+
+从实现上讲，std::move基本等同于一个类型转换：static_cast<T&&>(lvalue);
+```
+int  &&rr1 = 42;
+int  &&rr3 = std::move(rr1);
+```
 ### std::forward
+完美转发，适用于这样的场景：需要将一组参数原封不动的传递给另一个函数
 
+“原封不动”不仅仅是参数的值不变，在 C++ 中，除了参数值之外，还有一下两组属性：左值／右值和 const/non-const。完美转发就是在参数传递过程中，所有这些属性和参数值都不能改变，同时，而不产生额外的开销，就好像转发者不存在一样，在泛型函数中，这样的需求非常普遍
 
+举例说明：
+```
+#include <iostream>
+using namespace std;
+
+template <typename T> void process_value(T & val)
+{
+    cout << "T &" << endl;
+}
+
+template <typename T> void process_value(const T & val)
+{
+    cout << "const T &" << endl;
+}
+
+//函数 forward_value 是一个泛型函数，它将一个参数传递给另一个函数 process_value
+template <typename T> void forward_value(const T& val)
+{
+    process_value(val);
+}
+
+template <typename T> void forward_value(T& val)
+{
+    process_value(val);
+}
+
+int main()
+{
+    int a = 0;
+    const int &b = 1;
+
+    //函数 forward_value 为每一个参数必须重载两种类型，T& 和 const T&
+    forward_value(a); // T&
+    forward_value(b); // const T &
+    forward_value(2); // const T&
+
+    return 0;
+}
+```
+对于一个参数就要重载两次，也就是函数重载的次数和参数的个数是一个正比的关系。这个函数的定义次数对于程序员来说，是非常低效的
+
+C++11是通过引入一条所谓“引用折叠”（reference collapsing）的新语言规则，并结合新的模板推导规则来完成完美转发
+```
+typedef const int T;
+typedef T & TR;
+TR &v = 1; //在C++11中，一旦出现了这样的表达式，就会发生引用折叠，即将复杂的未知表达式折叠为已知的简单表达式
+```
+C++11中的引用折叠规则：
+|TR的类型定义|声明v的类型|v的实际类型|
+|---|---|---|
+|T &|TR|T &|
+|T &|TR &|T &|
+|T &|TR &&|T &|
+|T &&|TR|T &&|
+|T &&|TR &|T &|
+|T &&|TR &&|T &&|
+一旦定义中出现了左值引用，引用折叠总是优先将其折叠为左值引用
+
+C++11中，std::forward可以保存参数的左值或右值特性：
+```
+#include <iostream>
+using namespace std;
+
+template <typename T> void process_value(T & val)
+{
+    cout << "T &" << endl;
+}
+
+template <typename T> void process_value(T && val)
+{
+    cout << "T &&" << endl;
+}
+
+template <typename T> void process_value(const T & val)
+{
+    cout << "const T &" << endl;
+}
+
+template <typename T> void process_value(const T && val)
+{
+    cout << "const T &&" << endl;
+}
+
+//函数 forward_value 是一个泛型函数，它将一个参数传递给另一个函数 process_value
+template <typename T> void forward_value(T && val) //参数为右值引用
+{
+    process_value( std::forward<T>(val) );//C++11中，std::forward可以保存参数的左值或右值特性
+}
+
+int main()
+{
+    int a = 0;
+    const int &b = 1;
+
+    forward_value(a); // T &
+    forward_value(b); // const T &
+    forward_value(2); // T &&
+    forward_value( std::move(b) ); // const T &&
+
+    return 0;
+}
+```
 # stl
  vector扩容原理
 ---
